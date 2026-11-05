@@ -1,13 +1,16 @@
 FROM golang:1.26-alpine AS builder
 
 WORKDIR /src
+# A cached golang:1.26-alpine can be older than go.mod's go line: auto
+# downloads the right toolchain instead of failing, as core's build does.
+ENV GOTOOLCHAIN=auto
 COPY go.mod go.sum* ./
 RUN go mod download
 
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOFLAGS=-mod=readonly go build -trimpath -o /app ./cmd/app
 
-# One image runs both commands: `serve` (the default) and `worker`.
+# One image runs both commands: `serve` (the default) and `migrate`.
 FROM gcr.io/distroless/static-debian12:nonroot
 
 # Reported by /api/version. CI passes the release version (or sha-<short>),
