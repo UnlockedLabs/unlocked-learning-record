@@ -12,8 +12,8 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/UnlockedLabs/unlocked-product-template/internal/server"
-	"github.com/UnlockedLabs/unlocked-product-template/internal/worker"
+	"github.com/UnlockedLabs/unlocked-learning-record/internal/server"
+	"github.com/UnlockedLabs/unlocked-learning-record/internal/worker"
 )
 
 const usage = "usage: app serve | app worker"
