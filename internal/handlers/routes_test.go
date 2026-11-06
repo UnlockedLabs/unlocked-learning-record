@@ -44,16 +44,25 @@ const testClaimsHeader = "X-Test-Claims"
 
 // The resident the tests call as. The ID is the one core's test database
 // gave them, after its default user (1); the golden files name it.
-var residentClaims = &identity.Claims{UserID: 2, Username: "jdoe", Role: users.Student, FacilityID: northID, FacilityName: "North"}
+var residentClaims = &identity.Claims{UserID: 2, Username: "jdoe", Role: users.Student, FacilityID: northID, FacilityName: "North",
+	FeatureAccess: []features.Access{features.LearningRecord}}
+
+// withoutLearningRecord is c with the learning_record feature off at its
+// facility: the same claims, without it in FeatureAccess.
+func withoutLearningRecord(c *identity.Claims) *identity.Claims {
+	off := *c
+	off.FeatureAccess = nil
+	return &off
+}
 
 // newRouteTest starts the routes on a test database seeded as core's test
-// seeded it, with features asked of a fake core.
+// seeded it.
 func newRouteTest(t *testing.T) (*httptest.Server, *database.DB) {
 	t.Helper()
 	db := newTestDB(t)
 	seedCore(t, db)
 	srv := &server{db: db}
-	ts := httptest.NewServer(newRouter(srv.routes(), testLogin, features.NewChecker(startFakeCore(t), nil)))
+	ts := httptest.NewServer(newRouter(srv.routes(), testLogin))
 	t.Cleanup(ts.Close)
 	return ts, db
 }
@@ -253,25 +262,21 @@ func TestLearningRecordRouteAccess(t *testing.T) {
 	}
 	require.Len(t, (&server{}).routes(), len(routes), "every route is listed here")
 
-	// Core says learning_record is off at South, and can't answer for
-	// unknownFacilityID, which reads as off.
-	atSouth, atUnknown := *residentClaims, *residentClaims
-	atSouth.FacilityID, atUnknown.FacilityID = southID, unknownFacilityID
+	// The same resident, with learning_record off at their facility.
+	off := withoutLearningRecord(residentClaims)
 
 	for _, rt := range routes {
 		t.Run(rt.method+" "+rt.path, func(t *testing.T) {
 			// Every route requires the learning_record feature.
-			for _, c := range []*identity.Claims{&atSouth, &atUnknown} {
-				resp := call(t, ts, c, rt.method, rt.path, map[string]any{})
-				require.Equal(t, http.StatusUnauthorized, resp.status, resp.body)
-				require.Equal(t, "Feature not enabled", message(t, resp))
-			}
+			resp := call(t, ts, off, rt.method, rt.path, map[string]any{})
+			require.Equal(t, http.StatusUnauthorized, resp.status, resp.body)
+			require.Equal(t, "Feature not enabled", message(t, resp))
 
 			// Every route is open to any logged-in user: a resident with the
 			// feature gets past the checks. The body isn't valid JSON; a route
 			// that reads one (POST/PUT) rejects it before doing anything else.
 			// DELETE never reads a body, so it still runs its normal delete.
-			resp := call(t, ts, residentClaims, rt.method, rt.path, "not an object")
+			resp = call(t, ts, residentClaims, rt.method, rt.path, "not an object")
 			require.NotEqual(t, http.StatusUnauthorized, resp.status, resp.body)
 		})
 	}
@@ -300,9 +305,7 @@ func TestMetrics(t *testing.T) {
 		resp := call(t, ts, residentClaims, http.MethodPut, "/api/learning-record/entries/"+id, map[string]any{})
 		require.Equal(t, http.StatusBadRequest, resp.status, resp.body)
 	}
-	atSouth := *residentClaims
-	atSouth.FacilityID = southID
-	resp := call(t, ts, &atSouth, http.MethodGet, "/api/learning-record/entries", nil)
+	resp := call(t, ts, withoutLearningRecord(residentClaims), http.MethodGet, "/api/learning-record/entries", nil)
 	require.Equal(t, http.StatusUnauthorized, resp.status, resp.body)
 
 	assert.Equal(t, bad+2, testutil.ToFloat64(responseStatus.WithLabelValues(route, http.MethodPut, "400")), "one series for every entry")
@@ -313,9 +316,8 @@ func TestMetrics(t *testing.T) {
 // NewHandler answers its 401 before any route runs. /api/metrics needs no
 // login.
 func TestNewHandlerRequiresLogin(t *testing.T) {
-	coreURL := startFakeCore(t)
-	sessions := identity.NewSessionChecker("http://kratos.invalid", coreURL, nil)
-	h := NewHandler(newTestDB(t), sessions.Require, features.NewChecker(coreURL, nil))
+	sessions := identity.NewSessionChecker("http://kratos.invalid", "http://core.invalid", nil)
+	h := NewHandler(newTestDB(t), sessions.Require)
 
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/learning-record/entries", nil))

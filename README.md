@@ -54,7 +54,7 @@ Settings, all from the environment:
 | `PATH_PREFIX` | Leave unset: the routes live at `/api/learning-record`, like core's. It only moves `/api/version` and `/api/healthcheck`. |
 | `APP_DSN`, or `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` | Core's database, as core reads them. |
 | `KRATOS_PUBLIC_URL` | Kratos's public API, to check the login session. |
-| `APP_URL` | Core inside the cluster, such as `http://server:8080`: who a user is, and whether `learning_record` is on at their facility. |
+| `APP_URL` | Core inside the cluster, such as `http://server:8080`: who a user is. |
 | `APP_ENV` | `dev` for local runs: no HSTS header, and `migrate-reset` may run. |
 | `LOG_LEVEL` | Default `info`. Logs are JSON, as core's are. |
 | `APP_VERSION`, `GIT_COMMIT`, `GIT_BRANCH` | What `/api/version` reports. CI bakes them into the image. |
@@ -66,11 +66,11 @@ Settings, all from the environment:
   (`/internal/v1/claims`) who the user is. A missing session is core's 401, a
   missing or wrong CSRF token on a write core's 403.
 - **Feature flag:** every route needs `learning_record`, which core still
-  owns. `features.Checker` asks core (`/internal/v1/features`) whether it's
-  on at the user's facility and caches the answer for 30 seconds, so a
-  change in Feature Control reaches this service within that time. When core
-  can't answer, it keeps the last answer, or reads the feature as off. A
-  user without it gets core's 401 `Feature not enabled`.
+  owns. The check reads the session's claims (`claims.HasFeature`), which
+  core sends with the user's identity, `feature_access` included, as Open
+  Content and Programs do. So a feature is on or off here exactly when it is
+  in core, with no second call. A user without it gets core's 401
+  `Feature not enabled`.
 - **Access:** every route is open to any logged-in user with the feature,
   as in core. Each route works on the caller's own entries only.
 - **Logs:** an admin's write gets core's admin audit line
@@ -128,9 +128,11 @@ Postgres refuses anything else.
   move and moved with it unchanged. The fix is
   `TargetWhere: clause.Where{Exprs: []clause.Expression{clause.Expr{SQL: "deleted_at IS NULL"}}}`
   on the `clause.OnConflict` in `UpsertDraft`, plus `CURRENT_TIMESTAMP` for
-  `NOW()` so the SQLite test can run it, in a follow-up ticket.
-- The tests run on SQLite, with a fake core for the feature flag, so they
-  can't run the migrations or the role's grants. Check those against core's
+  `NOW()` so the SQLite test can run it, in
+  [EN-287](https://unlockedlabs.atlassian.net/browse/EN-287).
+- The tests run on SQLite, and give the caller's claims directly (with or
+  without `learning_record` in `FeatureAccess`), so they can't run the
+  migrations or the role's grants. Check those against core's
   `make dev`.
 
 ## How to release

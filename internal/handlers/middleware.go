@@ -26,43 +26,33 @@ type route struct {
 // and records each one's metrics. requireLogin checks the session and puts
 // the caller's identity.Claims in the request's context, as
 // identity.SessionChecker's Require does.
-func newRouter(routes []route, requireLogin func(http.Handler) http.Handler, flags featureChecker) http.Handler {
+func newRouter(routes []route, requireLogin func(http.Handler) http.Handler) http.Handler {
 	mux := http.NewServeMux()
 	for _, rt := range routes {
-		mux.Handle(rt.Pattern, observe(rt.Pattern, requireLogin(requireFeatures(rt.Handler, flags, rt.Features))))
+		mux.Handle(rt.Pattern, observe(rt.Pattern, requireLogin(requireFeatures(rt.Handler, rt.Features))))
 	}
 	return securityHeaders(mux)
 }
 
-// requireFeatures answers core's 401 "Feature not enabled" unless every one of
-// required is on at the caller's facility. flags asks core, so a feature
-// turned off in Feature Control is off here within features.CacheTTL. When
-// core can't answer, flags keeps its last answer, or reads the feature as
-// off if it has none, so an outage never turns a feature on.
-func requireFeatures(next http.Handler, flags featureChecker, required []features.Access) http.Handler {
+// requireFeatures answers core's 401 "Feature not enabled" unless the caller's
+// claims have every one of required, as core's checkFeatureAccessMiddleware
+// does. The claims come from core with the session, so a feature is on or off
+// here exactly when it is in core.
+func requireFeatures(next http.Handler, required []features.Access) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims := claimsFrom(r)
-		for _, f := range required {
-			on, err := flags.Enabled(r.Context(), claims.FacilityID, f)
-			if err != nil {
-				logrus.WithFields(logrus.Fields{
-					"handler":     "checkFeatureAccessMiddleware",
-					"facility_id": claims.FacilityID,
-					"feature":     f,
-				}).Warnf("asking core whether a feature is on: %v", err)
-			}
-			if !on {
-				logrus.WithFields(logrus.Fields{
-					"handler":           "checkFeatureAccessMiddleware",
-					"method":            r.Method,
-					"path":              r.URL.Path,
-					"required_features": required,
-					"user_id":           claims.UserID,
-					"facility_id":       claims.FacilityID,
-				}).Warn("feature not enabled for user")
-				errorResponse(w, http.StatusUnauthorized, "Feature not enabled")
-				return
-			}
+		if !claims.HasFeature(required...) {
+			logrus.WithFields(logrus.Fields{
+				"handler":           "checkFeatureAccessMiddleware",
+				"method":            r.Method,
+				"path":              r.URL.Path,
+				"required_features": required,
+				"user_id":           claims.UserID,
+				"facility_id":       claims.FacilityID,
+				"feature_access":    claims.FeatureAccess,
+			}).Warn("feature not enabled for user")
+			errorResponse(w, http.StatusUnauthorized, "Feature not enabled")
+			return
 		}
 		next.ServeHTTP(w, r)
 	})

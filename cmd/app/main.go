@@ -12,7 +12,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/UnlockedLabs/unlocked-contracts/features"
 	"github.com/UnlockedLabs/unlocked-contracts/identity"
 	"github.com/UnlockedLabs/unlocked-learning-record/internal/database"
 	"github.com/UnlockedLabs/unlocked-learning-record/internal/handlers"
@@ -55,18 +54,16 @@ func run(ctx context.Context, args []string) error {
 }
 
 // serve runs the API once the database is migrated. KRATOS_PUBLIC_URL says
-// whether a login session is active, and core, at APP_URL, who its user is
-// and whether the learning_record feature is on at their facility.
+// whether a login session is active, and core, at APP_URL, who its user is,
+// including which features are on at their facility.
 func serve(ctx context.Context) error {
 	db, err := connectDB(ctx)
 	if err != nil {
 		return err
 	}
 	defer closeDB(db)
-	coreURL := os.Getenv("APP_URL")
-	sessions := identity.NewSessionChecker(os.Getenv("KRATOS_PUBLIC_URL"), coreURL, nil)
-	flags := features.NewChecker(coreURL, nil)
-	app := handlers.NewHandler(db, sessions.Require, flags)
+	sessions := identity.NewSessionChecker(os.Getenv("KRATOS_PUBLIC_URL"), os.Getenv("APP_URL"), nil)
+	app := handlers.NewHandler(db, sessions.Require)
 	return server.Serve(ctx, envOr("ADDR", ":8080"), os.Getenv("PATH_PREFIX"), server.VersionFromEnv(), app)
 }
 
