@@ -1,13 +1,15 @@
 # The image is named after this folder, which is the repo's name.
 IMAGE := $(notdir $(CURDIR))
 
-.PHONY: run worker test lint build
+.PHONY: run migrate test lint build
 
+# Learning Record's routes live at the root (/api/learning-record/...), like
+# core's, so serve runs with no PATH_PREFIX.
 run:
-	PATH_PREFIX=/$(IMAGE) go run ./cmd/app serve
+	go run ./cmd/app serve
 
-worker:
-	go run ./cmd/app worker
+migrate:
+	go run ./cmd/app migrate
 
 test:
 	go test -race ./...
