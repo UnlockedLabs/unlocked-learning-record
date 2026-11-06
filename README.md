@@ -58,7 +58,7 @@ Settings, all from the environment:
 
 ### Commit types
 
-The `conventional` and `pr title` checks allow these types, and nothing else:
+The `conventional commits` and `pr title` checks allow these types, and nothing else:
 
 | Type | In the changelog? | Version bump |
 |---|---|---|
@@ -200,7 +200,7 @@ Replace `<repo>` with the new repo's name, such as `unlocked-open-content`.
    ```
 3. **Branch protection on `main`:** copy the template's `protect-main`
    ruleset (PRs with one approval, and the `vet and test`, `golangci-lint`,
-   `govulncheck`, `conventional` and `pr title` checks). One line, so it works
+   `govulncheck`, `conventional commits` and `pr title` checks). One line, so it works
    in bash and fish:
    ```sh
    gh api repos/UnlockedLabs/unlocked-product-template/rulesets/$(gh api repos/UnlockedLabs/unlocked-product-template/rulesets --jq '.[] | select(.name=="protect-main") | .id') --jq '{name, target, enforcement, conditions, rules, bypass_actors}' | gh api -X POST repos/UnlockedLabs/<repo>/rulesets --input -
