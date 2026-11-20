@@ -139,7 +139,9 @@ Postgres refuses anything else.
 
 1. Merge PRs to `main` with conventional-commit titles (`feat: ...`,
    `fix: ...`). Each merge pushes `:sha-<short>` to ECR, then moves `:latest`
-   to it if it's still the tip of `main`.
+   to it if it's still the tip of `main`. It also sets staging's
+   `images.<product>.tag` to `sha-<short>` in `unlocked-platform`, which
+   deploys staging.
 2. release-please keeps a `chore(main): release X.Y.Z` PR open with the
    changelog. A `feat` bumps the minor version, a `fix` the patch (before
    1.0.0, a breaking change bumps the minor version).
@@ -156,8 +158,8 @@ The templates live in `unlocked-platform` (`components.learningRecord`,
 added in its EN-208 PR): the `serve` Deployment, with its readiness probe on
 `/api/healthcheck`, and Service; a migrate Job that runs `app migrate` after
 core's; and the `/api/learning-record` ingress path. Pin the release in each
-site file and deploy through the deploy workflow. Only staging may use
-`latest`.
+site file except staging, which follows `main` (see How to release), and
+deploy through the deploy workflow.
 
 ## Vulnerability alerts
 
