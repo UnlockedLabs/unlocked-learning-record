@@ -163,8 +163,7 @@ deploy through the deploy workflow.
 
 ## Vulnerability alerts
 
-`govulncheck` checks the code, its dependencies and the Go version on every
-push, every Monday at 14:00 UTC, and by hand (**Actions → govulncheck → Run
-workflow**). A finding fails the check. When it fails on `main` and the repo
-can see the `SLACK_WEBHOOK_URL` secret, it posts a link to the run to Slack.
-Without the secret, it shows only as a red check.
+`govulncheck` runs on every PR, as unlocked-core's scan does. Vulnerabilities
+block the PR and post to #unlockedv2-alerts through the `SLACK_WEBHOOK_URL`
+secret, with the same message core sends. Without the secret, they show only
+as a red check.
